@@ -1,0 +1,177 @@
+/*
+
+  The circuit:
+ * LCD RS pin to digital pin 12
+ * LCD Enable pin to digital pin 11
+ * LCD D4 pin to digital pin 10
+ * LCD D5 pin to digital pin 9
+ * LCD D6 pin to digital pin 8
+ * LCD D7 pin to digital pin 7
+ * LCD R/W(5) pin to ground
+ * LCD VSS(1) pin to ground * LCD VCC(2) pin to 5V
+ * DHT11 D0 to 3
+ * soil moisture to A0
+ * water level to 2 
+ * fan to 13
+ * waterlevel pump to 6 
+*/
+
+
+
+#include <SoftwareSerial.h>
+#include <LiquidCrystal.h>
+LiquidCrystal lcd(12, 11, 10, 9, 8, 7);
+                //rs, en,dt4,dt5,dt6,dt7, vss to grnd vcc to 5v , R/w to grnd,16 to grnd , 15 to 5v
+#include<dht.h>
+
+SoftwareSerial mySerial(5,4); // RX, TX
+
+dht DHT;
+int sensor;
+int waterlevel;                                          
+int count;
+char t[5];
+char h[5];
+#define DHT11_PIN 3 //DHT11 data output
+void setup()
+
+{
+
+pinMode(6,OUTPUT);//water level motor                     
+pinMode(2,INPUT); // water level                          
+pinMode(13,OUTPUT); // fan 
+
+lcd.begin(16, 2);
+  
+lcd.setCursor(3,0);
+  
+lcd.print("Green  House");
+  
+lcd.setCursor(4,1);
+  
+lcd.print("MONITORING");
+
+Serial.begin(9600);
+mySerial.begin(9600);
+mySerial.println("AT");
+delay(1000);
+mySerial.println("AT+CMGF=1"); // send SMS in text mode
+delay(1000);
+
+delay(3000);
+
+}
+
+void sendsms(String number,String sms)
+{
+mySerial.println("AT+CMGS=\"+917760073516\"\r");  
+//mySerial.println("AT+CMGS=\""+number+"\""); //CHANGE TO Number , you'd like to receive message
+mySerial.println(sms); // content of the message
+mySerial.write(26); // ctrl+z ASCII code
+delay(2000);  
+}
+void loop()
+{  
+ int chk = DHT.read11(DHT11_PIN);   
+lcd.clear();
+lcd.setCursor(0,0); 
+lcd.print("H:");
+lcd.print(DHT.humidity, 1); 
+lcd.print(" T:");
+lcd.print(DHT.temperature, 1);
+lcd.setCursor(0,1);  
+lcd.print("S:");
+lcd.print(map(analogRead(A0),0,1024,1024,0));
+lcd.setCursor(5,1);
+lcd.print("W:");
+//lcd.print(analogRead(A1));
+lcd.print(digitalRead(2));
+//lcd.setCursor( enter value pls  );                                       
+//lcd.print("Water level:");      
+Serial.print("temperature:");
+Serial.println(DHT.temperature);
+Serial.print("humdity:");
+Serial.println(DHT.humidity);  
+Serial.print("Soil Conductivity:");
+Serial.println(analogRead(A0));  
+
+Serial.print(digitalRead(2));
+delay(200);
+
+//sensor = map(analogRead(A0),0,1024,1024,0); // read whether gas is presented or not
+sensor=analogRead(A0);
+if(sensor>1000)
+{
+digitalWrite(6,HIGH);
+lcd.clear();
+lcd.setCursor(0,0);
+lcd.print("Sending..");
+lcd.setCursor(1,1);
+lcd.print("MOTOR ON");
+sendsms("+917760073516","MOTOR ON"); 
+delay(5000);
+}
+else
+{  
+  digitalWrite(6,LOW);
+  lcd.clear();
+  lcd.setCursor(0,0);
+  lcd.print("Sending..");
+  lcd.setCursor(1,1);
+  lcd.print("MOTOR OFF");
+  sendsms("+917760073516","MOTOR OFF");
+  delay(5000);
+}
+    
+if(DHT.temperature>25)
+{   
+digitalWrite(13,HIGH); //fan
+lcd.clear();
+lcd.setCursor(0,0);
+lcd.print("Sending..");
+lcd.setCursor(1,1);
+lcd.print("FAN ON");  
+sendsms("+917760073516","Fan ON");
+}
+else 
+digitalWrite(13,LOW);
+
+/*
+if (sensor>30)  
+{   // if gas is presented send a message
+digitalWrite(13,HIGH);
+sendsms("eneter number","message");
+}
+else 
+digitalWrite(13,LOW);
+*/
+waterlevel = digitalRead(2);    //water level sensor to digital i/p 6                                                
+if (waterlevel==0)              //check waterlevel values                                                     
+{                                                                                                  
+digitalWrite(6,HIGH);           //motor pump d4                                           
+sendsms("+917760073516","MOTOR ON");                                            
+}
+else 
+digitalWrite(6,LOW);
+//String s="%d  %d  %d  %d",DHT.humidity,DHT.temperature,analogRead(A0),analogRead(A0); 
+count++;                        //wait to send sensor values
+//itoa(DHT.temperature,t,10);     //int to str
+//itoa(DHT.humidity,h,10);
+//strcat(t,"  ");
+//strcat(t,h);
+//lcd.clear();
+//lcd.print(t);
+//delay(3000);
+if(count==2000)                         
+{                                                    
+sendsms("+917760073516",t);
+lcd.clear();
+lcd.setCursor(0,0);  
+lcd.print("Sending message..");
+lcd.setCursor(0,1); 
+lcd.print(t);
+Serial.print(t);
+delay(2000);
+ count=0; 
+}
+}
